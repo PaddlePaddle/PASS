@@ -30,10 +30,17 @@ class L2Head(nn.Layer):
 
     def __init__(self):
         super(L2Head, self).__init__()
+        self.class_criteria = nn.CrossEntropyLoss()
 
-    def forward(self, x1, y1, x2, y2):
+    def forward(self, x1, y1, x2, y2,classif_out, label):
         outputs = dict()
-        outputs['loss1'] = ((x1 - y1)**2).sum(axis=1).mean()
-        outputs['loss2'] = ((x2 - y2)**2).sum(axis=1).mean()
-        outputs['loss'] = outputs['loss1'] + outputs['loss2']
+        loss1 = ((x1 - y1)**2).sum(axis=1)
+        loss2 = ((x2 - y2)**2).sum(axis=1)
+        outputs['rep1'] = loss1.mean()
+        outputs['rep2'] = loss2.mean()
+        outputs['rep_loss'] = (loss1 + loss2).mean()
+        
+        class_loss = self.class_criteria(classif_out,label)
+        outputs["class_loss"] = class_loss.mean()
+        outputs["final_loss"] = outputs['rep_loss'] + outputs["class_loss"]
         return outputs

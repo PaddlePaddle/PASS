@@ -79,8 +79,7 @@ class Trainer:
         self.cfg = cfg
         self.output_dir = cfg.output_dir
 
-        self.local_rank = dist.get_rank()
-        self.log_interval = cfg.log_config.interval
+        self.local_rank = dist.get_rank() 
 
         self.start_epoch = 0
         self.current_epoch = 0
@@ -88,12 +87,8 @@ class Trainer:
         self.inner_iter = 0
         self.batch_id = 0
         self.global_steps = 0
-        use_byol_iters = cfg.get('use_byol_iters', False)
-        self.use_byol_iters = use_byol_iters
-        self.epochs = cfg.get('epochs', None)
         self.timestamp = cfg.timestamp
         self.logs = OrderedDict()
-    	# Ensure that the vdl log file can be closed normally
 
         # build model
         self.model = build_model(cfg.model)
@@ -103,48 +98,31 @@ class Trainer:
             self.model = DistributedDataParallel(self.model)
 
         # build train dataloader
-        self.train_dataloader = build_dataloader(cfg.dataloader.train)
+        self.train_dataloader  = build_dataloader(cfg.dataloader.train)
         self.iters_per_epoch = len(self.train_dataloader)
+        print("whc______data:",len(self.train_dataloader))
 
-        # use byol iters
-        if self.use_byol_iters:
-            self.global_batch_size= cfg.global_batch_size
-            self.byol_total_iters = self.epochs * cfg.total_images // self.global_batch_size
-
+        
         # build optimizer
         self.lr_scheduler = MultiStateDictMeta()
         self.optimizer = MultiStateDictMeta()
-        separete = cfg.get('separete', False)
-        if not separete:
+        # if type(parameters) == list: 
+        '''
+        if not hasattr(self.model._layers, 'separate_parameters'):
             parameters = self.model.parameters()
             # build lr scheduler
-            if self.use_byol_iters:
-                self.lr_scheduler.append(build_lr_scheduler(cfg.lr_scheduler, self.byol_total_iters))
-            else:
-                self.lr_scheduler.append(build_lr_scheduler(cfg.lr_scheduler, self.iters_per_epoch))
+            self.lr_scheduler.append(build_lr_scheduler(cfg.lr_scheduler, self.iters_per_epoch))
             self.optimizer.append(build_optimizer(cfg.optimizer, self.lr_scheduler[0], parameters))
         else:
-            visual_params = []
-            textual_params = []
-            other_params = []
-            #for name, param in self.model._layers.model.named_parameters():
-            for name, param in self.model.named_parameters():
-                if 'visual.' in name:
-                    visual_params.append(param)
-                elif 'textual.' in name:
-                    textual_params.append(param)
-                else:
-                    other_params.append(param)
-            parameters = dict()
-            parameters['lr'] = [cfg.solver.lr, other_params]
-            parameters['visual'] = [cfg.solver.visual_lr, visual_params]
-            parameters['textual'] = [cfg.solver.textual_lr, textual_params]
-            for _, value in parameters.items():
-                current_lr_scheduler = build_lr_scheduler(value[0], self.iters_per_epoch)
+            print('Using Seperating Learning Rate')
+            parameters = self.model._layers.separate_parameters()
+            for key, value in parameters.items():
+                current_lr_scheduler = build_lr_scheduler(getattr(cfg.lr_scheduler, key), self.iters_per_epoch)
                 self.lr_scheduler.append(current_lr_scheduler)
-                self.optimizer.append(build_optimizer(cfg.optimizer, current_lr_scheduler, value[1]))
-
-
+                self.optimizer.append(build_optimizer(cfg.optimizer, current_lr_scheduler, value))
+        print("self.lr_scheduler:   ",self.lr_scheduler)
+        print(self.lr_scheduler.state_dict())
+        '''
         # build hooks
         self.hooks = []
 
@@ -152,8 +130,13 @@ class Trainer:
         self.add_custom_hooks()
         self.hooks = sorted(self.hooks, key=lambda x: x.priority)
 
+        self.epochs = cfg.get('epochs', None)
         if self.epochs:
             self.total_iters = self.epochs * self.iters_per_epoch
+            total_batch = cfg.get('total_batch', None)
+            total_images = cfg.get('total_image', None)
+            if total_batch is not None and total_images is not None:
+                self.total_iters = self.epochs * total_images // total_batch
             self.by_epoch = True
         else:
             self.by_epoch = False
@@ -162,24 +145,25 @@ class Trainer:
     def add_train_hooks(self):
         optim_cfg = self.cfg.get('optimizer_config', None)
         if optim_cfg is not None:
-            self.add_hook(build_hook(optim_cfg))
+            self.add_hook(optim_cfg)
         else:
             self.add_hook(build_hook({'name': 'OptimizerHook'}))
 
         lr_cfg = self.cfg.get('lr_config', None)
         if lr_cfg is not None:
-            self.add_hook(build_hook(lr_cfg))
+            self.add_hook(lr_cfg)
         else:
             self.add_hook(build_hook({'name': 'LRSchedulerHook'}))
 
         timer_cfg = self.cfg.get('timer_config', None)
         if timer_cfg is not None:
-            self.add_hook(build_hook(timer_cfg))
+            self.add_hook(timer_cfg)
         else:
             self.add_hook(build_hook({'name': 'IterTimerHook'}))
+
         ckpt_cfg = self.cfg.get('checkpoint', None)
         if ckpt_cfg is not None:
-            self.add_hook(build_hook(ckpt_cfg))
+            self.add_hook(ckpt_cfg)
         else:
             self.add_hook(build_hook({'name': 'CheckpointHook'}))
 
@@ -188,6 +172,13 @@ class Trainer:
             self.add_hook(build_hook(log_cfg))
         else:
             self.add_hook(build_hook({'name': 'LogHook'}))
+        
+        # visual config
+        #visual_cfg = self.cfg.get('visual_config', None) 
+        #if visual_cfg is None:
+        #    self.add_hook(build_hook(visual_cfg))
+        #else:
+        #    self.add_hook(build_hook({'name': 'VisualHook'}))
 
     def add_custom_hooks(self):
         custom_cfgs = self.cfg.get('custom_config', None)
@@ -226,13 +217,10 @@ class Trainer:
             self.inner_iter = self.current_iter % self.iters_per_epoch
 
             data = next(iter_loader)
-
             self.call_hook('train_iter_begin')
 
-            if self.use_byol_iters:
-                self.outputs = self.model(*data, total_iters=self.byol_total_iters, current_iter=self.current_iter)
-            else:
-                self.outputs = self.model(*data, total_iters=self.total_iters, current_iter=self.current_iter)
+            self.outputs = self.model(*data, total_iters=self.total_iters, current_iter=self.current_iter)
+            
             self.call_hook('train_iter_end')
 
             if self.current_iter % self.iters_per_epoch == 0:
@@ -291,9 +279,9 @@ class Trainer:
                         total_samples, accum_samples,
                         total_samples + current_samples - accum_samples))
                     pred = pred[:total_samples + current_samples -
-                                accum_samples]
+                                accum_samples, ...]
                     labels = labels[:total_samples + current_samples -
-                                    accum_samples]
+                                    accum_samples, ...]
                     current_samples = total_samples + current_samples - accum_samples
 
             res = self.val_dataloader.dataset.evaluate(pred, labels, **kargs)
@@ -321,12 +309,11 @@ class Trainer:
         if checkpoint.get('epoch', None) is not None:
             self.start_epoch = checkpoint['epoch']
             self.current_epoch = checkpoint['epoch']
-            self.current_iter = (self.start_epoch - 1) * self.iters_per_epoch
-
+            self.current_iter = (self.start_epoch - 0) * self.iters_per_epoch
+        
         self.model.set_state_dict(checkpoint['state_dict'])
         self.optimizer.set_state_dict(checkpoint['optimizer'])
-        self.lr_scheduler.set_state_dict(checkpoint['lr_scheduler'])
-        
+        self.lr_scheduler.set_state_dict(checkpoint['lr_sheduer'])
         self.logger.info(
             'Resume training from {} success!'.format(checkpoint_path))
 

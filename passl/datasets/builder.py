@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import copy
+import numpy as np
 import paddle
-
+from .preprocess import build_transforms
 from ..utils.registry import Registry, build_from_config
 
 DATASETS = Registry("DATASET")
-
-
 def build_dataset(cfg):
     return build_from_config(cfg, DATASETS)
 
@@ -28,8 +27,8 @@ def build_dataloader(cfg):
     cfg_ = copy.deepcopy(cfg)
     dataset_cfg = cfg_.pop('dataset')
     sampler_cfg = cfg_.pop('sampler')
+    
     dataset = build_dataset(dataset_cfg)
-
     sampler = paddle.io.DistributedBatchSampler(dataset, **sampler_cfg)
 
     dataloader = paddle.io.DataLoader(dataset, batch_sampler=sampler, **cfg_)

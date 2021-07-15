@@ -258,10 +258,7 @@ def xavier_init(layer, gain=1, bias=0, distribution='normal'):
 
 
 def normal_init(layer, mean=0, std=1, bias=0):
-    if hasattr(layer, 'weight') and layer.weight is not None:
-        normal_(layer.weight, mean, std)
-    else:
-        normal_(layer, mean, std)
+    normal_(layer.weight, mean, std)
     if hasattr(layer, 'bias') and layer.bias is not None:
         constant_(layer.bias, bias)
 

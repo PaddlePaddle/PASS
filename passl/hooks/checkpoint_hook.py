@@ -137,6 +137,24 @@ class CheckpointHook(Hook):
                     print(ckpt_path)
                     break
 
+    def run_end(self, trainer):
+        if paddle.distributed.get_rank() != 0:
+            return
+
+        if not self.by_epoch or not self.every_n_epochs(trainer, self.interval):
+            return
+
+        trainer.logger.info(
+            f'Saving checkpoint at {trainer.current_epoch + 2} epochs')
+        if not self.out_dir:
+            self.out_dir = trainer.output_dir
+        self.save_checkpoint(self.out_dir,
+                             trainer,
+                             save_optimizer=self.save_optimizer,
+                             **self.args)
+
+
+
     def train_iter_end(self, trainer):
         if paddle.distributed.get_rank() != 0:
             return

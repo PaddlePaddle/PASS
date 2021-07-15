@@ -50,6 +50,7 @@ class ClasHead(nn.Layer):
         losses = dict()
 
         losses['loss'] = self.criterion(cls_score, labels)
+        losses['final_loss'] = losses['loss']
         losses['acc1'], losses['acc5'] = accuracy(cls_score,
                                                   labels,
                                                   topk=(1, 5))

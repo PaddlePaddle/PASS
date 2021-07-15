@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from .builder import build_transform, build_transforms
-from .transforms import RandomApply, RandomGrayscale, GaussianBlur, Solarization
+from .transforms import RandomApply, ByolRandomGrayscale, GaussianBlur

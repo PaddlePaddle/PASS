@@ -13,26 +13,38 @@
 # limitations under the License.
 
 import random
-from PIL import ImageFilter, Image, ImageOps
 import numpy as np
-
 import paddle
+import cv2
 
-import paddle.vision.transforms as PT
-import paddle.vision.transforms.functional as F
-
+from paddle.vision.transforms import  RandomResizedCrop,Transpose,Resize,CenterCrop,Normalize,RandomHorizontalFlip
 from .builder import TRANSFORMS, build_transform
+from .cv2_trans import ByolRandomHorizontalFlip, ByolColorJitter, ByolRandomGrayscale, ByolNormalize,ToCHW,ToRGB,ByolCenterCrop
 
-TRANSFORMS.register(PT.RandomResizedCrop)
-TRANSFORMS.register(PT.ColorJitter)
-TRANSFORMS.register(PT.Transpose)
-TRANSFORMS.register(PT.Normalize)
-TRANSFORMS.register(PT.RandomHorizontalFlip)
-TRANSFORMS.register(PT.Resize)
-TRANSFORMS.register(PT.CenterCrop)
-TRANSFORMS.register(PT.ToTensor)
+TRANSFORMS.register(RandomResizedCrop)
+TRANSFORMS.register(ByolRandomHorizontalFlip)
+TRANSFORMS.register(ByolColorJitter)
+TRANSFORMS.register(ByolRandomGrayscale)
+TRANSFORMS.register(ByolNormalize)
+TRANSFORMS.register(ToCHW)
+TRANSFORMS.register(ToRGB)
 
+TRANSFORMS.register(Transpose)
+TRANSFORMS.register(Resize)
+TRANSFORMS.register(CenterCrop)
+TRANSFORMS.register(ByolCenterCrop)
+TRANSFORMS.register(Normalize)
+TRANSFORMS.register(RandomHorizontalFlip)
 
+@TRANSFORMS.register()
+class To_Normal():
+    def __init__(self,mean,std):
+        self.mean=mean
+        self.std=std
+    def __call__(self,img):
+        self.mean = np.array(self.mean, dtype='float32').reshape([1, 1, 3])
+        self.std = np.array(self.std, dtype='float32').reshape([1, 1, 3])
+        return (img - self.mean) /self.std    #.astype("float32")
 
 @TRANSFORMS.register()
 class NormToOne():
@@ -47,8 +59,25 @@ class NormToOne():
         Returns:
             PIL Image: Randomly grayscaled image.
         """
-        norm_img = (img/255.).astype('float32')
+        #norm_img = (img/255.).astype('float32')
+        norm_img = Image.eval(img,lambda x:x/255.0)
         return norm_img
+@TRANSFORMS.register()
+class Clip():
+    def __init__(self,min_val=0.0,max_val=1.0):
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __call__(self, img):
+        """
+        Args:
+            img (PIL Image): Image to be converted to grayscale.
+
+        Returns:
+            PIL Image: Cliped image.
+        """
+        clip_img = img.clip(self.min_val,self.max_val)
+        return clip_img
 
 @TRANSFORMS.register()
 class RandomApply():
@@ -79,74 +108,45 @@ class RandomApply():
         return img
 
 
-@TRANSFORMS.register()
-class RandomGrayscale(object):
-    """Randomly convert image to grayscale with a probability of p (default 0.1).
-
-    Args:
-        p (float): probability that image should be converted to grayscale.
-
-    Returns:
-        PIL Image: Grayscale version of the input image with probability p and unchanged
-        with probability (1-p).
-        - If input image is 1 channel: grayscale version is 1 channel
-        - If input image is 3 channel: grayscale version is 3 channel with r == g == b
-
-    """
-
-    def __init__(self, p=0.1):
-        self.p = p
-
-    def __call__(self, img):
-        """
-        Args:
-            img (PIL Image): Image to be converted to grayscale.
-
-        Returns:
-            PIL Image: Randomly grayscaled image.
-        """
-        num_output_channels = 1 if img.mode == 'L' else 3
-
-        if random.random()< self.p:
-            return F.to_grayscale(img, num_output_channels=num_output_channels)
-        return img
 
 
 @TRANSFORMS.register()
 class GaussianBlur(object):
     """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
 
-    def __init__(self, sigma=[.1, 2.], _PIL=False):
+    def __init__(self,kernel_size, sigma=[.1, 2.],use_cv=True):
         self.sigma = sigma
-        self.kernel_size = 23
-        self._PIL = _PIL
+        self.kernel_size = kernel_size
+        self.use_cv = use_cv
 
     def __call__(self, x):
-        sigma = np.random.uniform(self.sigma[0], self.sigma[1])
-        if self._PIL: 
+        sigma = random.uniform(self.sigma[0], self.sigma[1])
+        if self.use_cv:
+            x = x[:,:,::-1]  # toBGR
+            x = cv2.GaussianBlur(x, (self.kernel_size, self.kernel_size), sigma)
+            x = x[:,:,::-1]  # toRGB
+            return x
+        else:
             x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
             return x
-        else:  
-            import cv2
-            x = cv2.GaussianBlur(np.array(x), (self.kernel_size, self.kernel_size), sigma)
-            return Image.fromarray(x.astype(np.uint8))
-               
+
 
 @TRANSFORMS.register()
 class Solarization(object):
-    def __init__(self, threshold=128):
+    """Solarization augmentation in BYOL https://arxiv.org/abs/2006.07733."""
+
+    def __init__(self, threshold=128,norm=False):
         self.threshold = threshold
+        self.norm = norm
 
-    def __call__(self, sample):
-        return ImageOps.solarize(sample, self.threshold)
+    def __call__(self, img):
+        #print(img.shape,"  =====> info:",img.max(),img.min(),img.mean(),img.std())
+        if not self.norm:
+            img = np.where(img < self.threshold, img, 255 -img)
+        else:
+            img = np.where(img < self.threshold, img, 1 -img)
+        return img
 
-
-@TRANSFORMS.register()
-class ToRGB(object):
-    def __init__(self, mode='RGB'):
-        self.mode = mode
-
-    def __call__(self, sample):
-        if sample.mode != self.mode:
-            return sample.convert(self.mode)
-        return sample
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str

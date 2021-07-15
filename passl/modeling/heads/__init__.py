@@ -15,6 +15,4 @@
 from .contrastive_head import ContrastiveHead
 from .clas_head import ClasHead
 from .l2_head import L2Head
-from .mb_head import MBHead
-from .clip_head import CLIPHead
 from .builder import build_head

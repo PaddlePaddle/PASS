@@ -1,3 +1,3 @@
 from .resnet import ResNet
-from .clip import CLIP 
+from .resnetCifar import ResNetCifar
 from .builder import build_backbone

@@ -23,20 +23,19 @@ class OptimizerHook(Hook):
         
     def train_iter_end(self, trainer):
         for i_opt in range(len(trainer.optimizer)):
-            if 'lars' in trainer.optimizer[i_opt].type:
-                trainer.optimizer[i_opt].clear_gradients()
-            else:
-                trainer.optimizer[i_opt].clear_grad()
+            trainer.optimizer[i_opt].clear_gradients()
 
         loss = 0
-        loss = trainer.outputs['loss']
+        # moco
+        #for key, value in trainer.outputs.items():
+        #    if 'loss' in key:
+        #        loss += value
+        loss = trainer.outputs['final_loss']
         loss.backward()
         
         for i_opt in range(len(trainer.optimizer)):
-            if 'lars' in trainer.optimizer[0].type:
-                trainer.optimizer[i_opt].minimize(loss)
-            else:
-                trainer.optimizer[i_opt].step()
+            #trainer.optimizer[i_opt].step()
+            trainer.optimizer[i_opt].minimize(loss)
 
         if 'loss' not in trainer.outputs:
             trainer.outputs['loss'] = loss

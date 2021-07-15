@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument(
         "--reference_dir", default="", help="path to reference images")
     parser.add_argument("--model_path", default=None, help="model for loading")
-    parser.add_argument('--output_dir', type=str, default='outputs', help='saving checkpoints and other states in this folder')
+    parser.add_argument('--output_dir', type=str, default=None, help='saving checkpoints and other states in this folder')
 
     args = parser.parse_args()
 

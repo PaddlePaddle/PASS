@@ -135,7 +135,6 @@ class DatasetFolder(Dataset):
         self.class_to_idx = class_to_idx
         self.samples = samples
         self.targets = [s[1] for s in samples]
-
         self.dtype = paddle.get_default_dtype()
 
     def _find_classes(self, dir, cls_filter=None):

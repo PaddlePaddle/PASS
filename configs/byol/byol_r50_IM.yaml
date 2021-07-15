@@ -1,0 +1,104 @@
+epochs: 300
+total_image: 1281167
+total_batch: 4096
+output_dir: output_dir
+model:
+  name: BYOL
+  backbone:
+    name: ResNet
+    depth: 50
+    with_pool: True
+    zero_init_residual: True
+  neck:
+    name: NonLinearNeckV2
+    in_channels: 2048
+    hid_channels: 4096
+    out_channels: 256
+    with_avg_pool: False
+  predictor:
+    name: NonLinearNeckV2
+    in_channels: 256
+    hid_channels: 4096
+    out_channels: 256
+    with_avg_pool: False
+  head:
+    name: L2Head
+  target_decay_method: cosine # cosine
+  target_decay_rate: 0.99
+  align_init_network: True
+  use_synch_bn: True
+  num_classes: 1000
+  embedding_dim: 2048
+
+dataloader:
+  train:
+    num_workers: 6
+    sampler:
+      batch_size: 128
+      shuffle: True
+      drop_last: True
+    dataset:
+      name: ImageNet
+      dataroot: data/ILSVRC2012/train
+      return_label: True
+      return_two_sample: True
+      transforms:
+        - name: RandomResizedCrop
+          size: 224
+          scale: [0.08, 1.]
+          interpolation: "bicubic"
+        - name: ByolNormalize 
+        - name: Clip
+      post_view_trans1:
+        - name: ByolRandomHorizontalFlip
+        - name: RandomApply
+          transforms:
+          - name: ByolColorJitter
+            brightness: 0.4
+            contrast: 0.4
+            saturation: 0.2
+            hue: 0.1
+          p: 0.8
+        - name: ByolRandomGrayscale
+          p: 0.2
+        - name: Clip
+      post_view_trans2:
+        - name: ByolRandomHorizontalFlip
+        - name: RandomApply
+          transforms:
+          - name: ByolColorJitter
+            brightness: 0.4
+            contrast: 0.4
+            saturation: 0.2
+            hue: 0.1
+          p: 0.8
+        - name: ByolRandomGrayscale
+          p: 0.2
+        - name: Clip
+
+
+lr_scheduler:
+  name: CosinWarmup
+  total_image: 1281167
+  total_batch: 4096
+  total_steps: 300
+  warmup_steps: 10
+  start_lr: 0
+  end_lr: 4.8
+
+optimizer:
+  name: LarsMomentumOptimizer
+  momentum: 0.9
+  lars_weight_decay: 1.0e-6
+  epsilon: 1e-9
+  exclude_from_weight_decay: [".b_0","batch_norm"]
+
+
+log_config:
+    name: LogHook
+    interval: 1
+#visual_config:
+#    name: VisualHook
+
+custom_config:
+  - name: BYOLHook

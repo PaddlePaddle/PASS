@@ -21,9 +21,16 @@ from .builder import BACKBONES
 from ...modules import init, freeze
 from ...utils.logger import get_logger
 
+class Identity(nn.Layer):
+    def __init__(self):
+        super(Identity, self).__init__()
+    
+    def forward(self, x):
+        return x
+
 
 @BACKBONES.register()
-class ResNet(models.ResNet):
+class ResNetCifar(models.ResNet):
     """ResNet model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -45,21 +52,31 @@ class ResNet(models.ResNet):
             resnet18 = ResNet(BasicBlock, 18)
 
     """
+
     def __init__(self,
                  depth,
                  num_classes=0,
                  with_pool=False,
                  zero_init_residual=False,
                  frozen_stages=-1,
+                 freeze_bn=True,
                  pretrained=None):
 
         block = BasicBlock if depth in [18, 34] else BottleneckBlock
 
-        super(ResNet, self).__init__(block, depth, num_classes, with_pool)
+        super(ResNetCifar, self).__init__(block, depth, num_classes, with_pool)
+        self.conv1 = nn.Conv2D(
+                        3,
+                        64,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        bias_attr=False)
+        self.maxpool = Identity()
+
         self.zero_init_residual = zero_init_residual
         self.frozen_stages = frozen_stages
         self.init_parameters()
-
         if pretrained is not None:
             state_dict = paddle.load(pretrained)
             if 'state_dict' in state_dict:
@@ -67,16 +84,15 @@ class ResNet(models.ResNet):
 
             self.set_state_dict(state_dict)
             logger = get_logger()
-            logger.info(
-                'Load pretrained backbone weight from {} success!'.format(
-                    pretrained))
+            logger.info('Load pretrained backbone weight from {} success!'.format(pretrained))
 
+        self.freeze_bn = freeze_bn
         self._freeze_stages()
 
     def init_parameters(self):
         for m in self.sublayers():
             if isinstance(m, nn.Conv2D):
-                 init.kaiming_init(m, mode='fan_in', nonlinearity='relu')
+                init.kaiming_init(m, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.layer.norm._BatchNormBase, nn.GroupNorm)):
                 init.constant_init(m, 1)
 
@@ -89,14 +105,16 @@ class ResNet(models.ResNet):
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
-            freeze.freeze_batchnorm_statictis(self.bn1)
+            if self.freeze_bn:
+                freeze.freeze_batchnorm_statictis(self.bn1)
             for m in [self.conv1, self.bn1]:
                 for param in m.parameters():
                     param.trainable = False
 
         for i in range(1, self.frozen_stages + 1):
             m = getattr(self, 'layer{}'.format(i))
-            freeze.freeze_batchnorm_statictis(m)
+            if self.freeze_bn:
+                freeze.freeze_batchnorm_statictis(m)
             for param in m.parameters():
                 param.trainable = False
 
@@ -104,4 +122,3 @@ class ResNet(models.ResNet):
             logger = get_logger()
             logger.info(
                 'Frozen layer before stage {}'.format(self.frozen_stages + 1))
-

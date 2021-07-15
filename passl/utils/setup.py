@@ -25,10 +25,6 @@ def setup(args, cfg):
     else:
         cfg.is_train = True
 
-    use_byol_iters = cfg.get('use_byol_iters', None)
-    if use_byol_iters:
-        cfg.num_gpus = args.num_gpus
-
     cfg.timestamp = time.strftime('-%Y-%m-%d-%H-%M', time.localtime())
     cfg.output_dir = args.output_dir
 

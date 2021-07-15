@@ -24,6 +24,9 @@ def build_lr_scheduler(cfg, iters_per_epoch):
     if cfg.name == 'CosineAnnealingDecay':
         cfg.T_max *= iters_per_epoch
         return build_from_config(cfg, LRSCHEDULERS)
+    elif cfg.name == "CosineDecay":
+        #cfg.T_max *= iters_per_epoch
+        return build_from_config(cfg, LRSCHEDULERS)
     elif cfg.name == 'MultiStepDecay':
         cfg.milestones = [x * iters_per_epoch for x in cfg.milestones]
         return build_from_config(cfg, LRSCHEDULERS)
@@ -31,7 +34,7 @@ def build_lr_scheduler(cfg, iters_per_epoch):
         cfg.learning_rate = build_lr_scheduler(cfg.learning_rate, iters_per_epoch)
         cfg.warmup_steps *= iters_per_epoch
         return build_from_config(cfg, LRSCHEDULERS)
-    elif cfg.name == 'CosineWarmup':
+    elif cfg.name == 'CosinWarmup':
         return build_from_config(cfg, LRSCHEDULERS)
     else:
         raise NotImplementedError

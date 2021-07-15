@@ -32,28 +32,6 @@ dataloader:
         - name: RandomResizedCrop
           size: 224
           scale: [0.2, 1.]
-      view_trans1:
-        - name: RandomApply
-          transforms:
-          - name: ColorJitter
-            brightness: 0.4
-            contrast: 0.4
-            saturation: 0.4
-            hue: 0.1
-          p: 0.8
-        - name: RandomGrayscale
-          p: 0.2
-        - name: RandomApply
-          transforms:
-          - name: GaussianBlur
-            sigma: [0.1, 2.0]
-          p: 0.5
-        - name: RandomHorizontalFlip
-        - name: Transpose
-        - name: Normalize
-          mean: [123.675, 116.28, 103.53]
-          std: [58.395, 57.12, 57.375]
-      view_trans2:
         - name: RandomApply
           transforms:
           - name: ColorJitter

@@ -21,6 +21,14 @@ from ..backbones import build_backbone
 from ..necks import build_neck
 from ..heads import build_head
 
+def img_normalize(img,mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225]):                                                                                   
+    mean = paddle.to_tensor(mean, dtype='float32').reshape([1, 1, 1, 3])                                                                                       
+    std = paddle.to_tensor(std, dtype='float32').reshape([1, 1, 1, 3])                                                                                         
+    return (img - mean) / std                                                                                                                                  
+                                                                                                                                                               
+def to_chw(img):                                                                                                                                               
+    return img.transpose((0,3,1,2))
+
 
 @MODELS.register()
 class Classification(nn.Layer):
@@ -45,6 +53,7 @@ class Classification(nn.Layer):
 
     def train_iter(self, *inputs, **kwargs):
         img, label = inputs
+        img = to_chw(img_normalize(img))
         x = self.backbone_forward(img)
         outs = self.head(x)
         loss_inputs = (outs, label)
@@ -54,6 +63,7 @@ class Classification(nn.Layer):
     def test_iter(self, *inputs, **kwargs):
         with paddle.no_grad():
             img, label = inputs
+            img = to_chw(img_normalize(img))
             x = self.backbone_forward(img)
             outs = self.head(x)
 

@@ -149,7 +149,10 @@ class LogHook(Hook):
                 else:
                     fmt = ':6.3f'
                 trainer.logs[k] = AverageMeter(k, fmt)
-            trainer.logs[k].update(float(v))
+            try:
+                trainer.logs[k].update(float(v))
+            except Exception as e:
+                print(e,"   ",k,"   ",v)
 
         if self.by_epoch and self.every_n_inner_iters(trainer, self.interval):
             self.print_log(trainer)

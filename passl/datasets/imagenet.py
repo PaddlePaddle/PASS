@@ -18,6 +18,8 @@ from .folder import DatasetFolder
 from .preprocess import build_transforms
 from .builder import DATASETS
 from ..utils.misc import accuracy
+#from paddle.vision import set_image_backend
+#set_image_backend('cv2')
 
 
 @DATASETS.register()
@@ -29,19 +31,25 @@ class ImageNet(DatasetFolder):
                  return_label,
                  return_two_sample=False,
                  transforms=None,
-                 view_trans1=None,
-                 view_trans2=None):
+                 post_view_trans1=None,
+                 post_view_trans2=None):
         super(ImageNet, self).__init__(dataroot, cls_filter=self.cls_filter)
 
         self.return_label = return_label
         self.return_two_sample = return_two_sample
         self.transforms = transforms
+        
+        self.post_view_trans1 = post_view_trans1
+        self.post_view_trans2 = post_view_trans2
+
         if transforms is not None:
             self.transform = build_transforms(transforms)
-        if self.return_two_sample:
-            self.view_transform1 = build_transforms(view_trans1)
-            self.view_transform2 = build_transforms(view_trans2)
-
+        
+        if self.post_view_trans1 is not None:
+            self.post_view_trans1 = build_transforms(self.post_view_trans1)
+        
+        if self.post_view_trans2 is not None:
+            self.post_view_trans2 = build_transforms(self.post_view_trans2) 
 
     def __getitem__(self, index):
         """
@@ -53,17 +61,28 @@ class ImageNet(DatasetFolder):
         """
         path, target = self.samples[index]
         sample = self.loader(path)
-
         if self.return_two_sample:
-            sample1 = self.transform(sample)
-            sample2 = self.transform(sample)
-            sample1 = self.view_transform1(sample1)
-            sample2 = self.view_transform2(sample2)
-            return sample1, sample2
-
+            try:
+                sample1 = self.transform(sample)
+                sample2 = self.transform(sample)
+            except Exception as e:
+                print("========ssss====>",e)
+            try:
+                if self.post_view_trans1 is not None:
+                    sample1 = self.post_view_trans1(sample1)
+                if self.post_view_trans2 is not None:
+                    sample2 = self.post_view_trans2(sample2)
+                if self.return_label:
+                    return sample1, sample2, target
+                else:
+                    return sample1, sample2
+            except Exception as e:
+                print("========>",e)
         if self.transform is not None:
-            sample = self.transform(sample)
-
+            try:
+                sample = self.transform(sample) 
+            except Exception as e:
+                print("=======>",e) 
         if self.return_label:
             return sample, target
 
