@@ -32,6 +32,7 @@ Models are all trained with ResNet-50 backbone.
 | MoCo  | 200 |  60.6| 60.64| ResNet-50 | [download](https://passl.bj.bcebos.com/models/moco_v1_r50_e200_ckpt.pdparams)|
 | MoCo v2 | 200 | 67.7 | 67.72| ResNet-50 | [download](https://passl.bj.bcebos.com/models/moco_v2_r50_e200_ckpt.pdparams)|
 | MoCo-BYOL | 300 | 71.56 | 72.10| ResNet-50 | [download](https://passl.bj.bcebos.com/models/mocobyol_r50_ep300_ckpt.pdparams)|
+| SimCLR | 100 | 64.5 | 65.3 | ResNet-50 | [download](https://passl.bj.bcebos.com/models/simclr_r50_ep100_ckpt.pdparams)|
 
 
 ## Getting Started
